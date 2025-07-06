@@ -83,7 +83,7 @@ class Widget:
                  button_border=3):
         self.parent = parent # Ссылка на класс игры, к которому прикреплен виджет
 
-        self.position = self.top, self.left = 0, 0 # Позиция виджета на экране
+        self.position = self.left, self.top = 0, 0 # Позиция виджета на экране
 
         self.all_sprites = pg.sprite.Group() # Группа всех спрайтов, принадлежащих виджету
 

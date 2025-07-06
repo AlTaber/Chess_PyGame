@@ -1,10 +1,17 @@
 import datetime
 import json
 from UI_Engine import *
+from Board import Piece, Board
 from random import randint
 
 class Game:
     def __init__(self):
+
+        self.current_options = {
+            "mode": "2 players",
+            "first_player": "white",
+            "timer": -1,
+        }
         
         self.any_widget_active = True
         self.current_widget = "main"
@@ -18,12 +25,15 @@ class Game:
         self.size = self.width, self.height = 1280, 720
         self.screen = pg.display.set_mode(self.size, pg.DOUBLEBUF)
         self.screen.set_alpha(None)
+
+        self.board = None
     
     def init_widgets(self):
         def play_with_bot():
             pass
         def play_2_players():
-            pass
+            self.current_widget = "game"
+            self.board = Board(self, self.current_options["first_player"], (300, 20), 85)
         def options():
             self.current_widget = "options"
         def quit():
@@ -45,9 +55,14 @@ class Game:
         ])
         self.OptionsMenu.add_button(Button(self.OptionsMenu, (490, 100), size=(300, 50), text="Back to Main Menu", action=main_menu))
 
+        self.GameMenu = Widget(self, [], [])
+
+        self.GameMenu.add_button(Button(self.GameMenu, (20, 20), size=(100, 40), text="Leave", action=main_menu))
+
         self.widgets = {
             "main": self.MainMenu,
             "options": self.OptionsMenu,
+            "game": self.GameMenu
         }
 
     def render_screen(self):
@@ -55,12 +70,14 @@ class Game:
             current_widget = self.widgets[self.current_widget]
 
             current_widget.render(self.screen)
+            if self.current_widget == "game":
+                self.board.render(self.screen)
         else:
             pass
     
     def run_game(self):
         
-        # pg.display.set_icon(pg.image.load("Assets/Images/Pawn.png"))
+        pg.display.set_icon(pg.image.load("Assets/Images/icon.png"))
         pg.display.set_caption("Chess")
         max_fps = 30
         screen = self.screen
@@ -98,6 +115,6 @@ class Game:
         pg.quit()
 
 
-if __name__ == "__main__": # если файл используется по прямому назначению - запускаем игру
+if __name__ == "__main__":
     game = Game()
     game.run_game()
