@@ -9,7 +9,7 @@ class Game:
 
         self.current_options = {
             "mode": "2 players",
-            "first_player": "white",
+            "player_one": "white",
             "timer": -1,
         }
         
@@ -33,7 +33,7 @@ class Game:
             pass
         def play_2_players():
             self.current_widget = "game"
-            self.board = Board(self, self.current_options["first_player"], (300, 20), 85)
+            self.board = Board(self, self.current_options["player_one"], (300, 20), 85)
         def options():
             self.current_widget = "options"
         def quit():
@@ -101,6 +101,8 @@ class Game:
                 if self.any_widget_active:
                     current_widget = self.widgets[self.current_widget]
                     if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                        if self.current_widget == "game":
+                            self.board.get_click(event.pos)
                         current_widget.get_click(event.pos)
                     if event.type == pg.MOUSEMOTION:
                         current_widget.get_motion(event.pos)
