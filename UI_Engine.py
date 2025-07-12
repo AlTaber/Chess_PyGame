@@ -33,9 +33,9 @@ class Button:
         self.size = size # Размер кнопки
 
         self.icon_name = icon_name # Название файла с иконкой для кнопки
-        self.text = text # Текст который будет отображаться на кнопке
+        self.text = text # Текст, который будет отображаться на кнопке
 
-        self.is_toggled = False # Если кнопка переключает какую нибудь настройку то при True отображает, что настройка включена
+        self.is_toggled = False # Если кнопка переключает какую нибудь настройку, то при True отображает, что настройка включена
         self.is_hovered = False # Если курсор находится на кнопке (True), то ее нужно отрисовать подсвеченной
 
         self.action = action # Функция, которая должна выполняться при нажатии на кнопку
@@ -73,8 +73,8 @@ class Text:
 # Класс виджета, с помощью которого можно делать меню
 class Widget:
     def __init__(self, parent,
-                 buttons: list[Button] = [],
-                 texts: list[Text] = [],
+                 buttons: list[Button],
+                 texts: list[Text],
                  button_color_1=pg.color.Color(210, 210, 210),
                  button_color_2=pg.color.Color(160, 160, 160),
                  button_color_toggled=pg.color.Color(60, 210, 210),
