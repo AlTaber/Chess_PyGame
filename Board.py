@@ -164,6 +164,7 @@ class Piece:
         self.color = color
         self.board = board
         self.moved = False
+        self.moves_direction = []
 
         try: # Загрузка изображения
             name = {1: 'white', -1: 'black'}[color]
@@ -186,29 +187,112 @@ class Piece:
                            (self.board.cell_size // 2, self.board.cell_size // 2),
                            self.board.cell_size // 3)
 
+    def get_valid_moves(self, pos):
+        valid_moves = []
+        if self.board.double_check:
+            return valid_moves
+        for i in self.moves_direction:
+            for j in range(1, 8):
+                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
+                sp = self.board.black_check_line if self.color == 1 else self.board.white_check_line
+                if not sp or (move in sp and pos in sp) or (self.board.in_check == self.color and move in sp) or (not self.board.in_check and pos not in sp):
+                    if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
+                            if self.board.grid[move[1]][move[0]] is None:
+                                valid_moves += [(move[0], move[1], 0)]
+                            elif self.board.grid[move[1]][move[0]].color != self.color:
+                                valid_moves += [(move[0], move[1], 1)]
+                                break
+                            else:
+                                break
+                elif 0 <= move[0] <= 7 and 0 <= move[1] <= 7 and self.board.grid[move[1]][move[0]] is not None:
+                    break
+        return valid_moves
+
+    def get_attacks(self, pos, color):
+        attacks = set()
+        flag = False
+        check_flag = False
+        if self.color != color:
+            return attacks
+        for i in self.moves_direction:
+            for j in range(1, 9):
+                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
+                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
+                    if self.board.grid[move[1]][move[0]] is None:
+                        if not flag:
+                            attacks.add((move[0], move[1]))
+                    elif self.board.grid[move[1]][move[0]].color == self.color:
+                        if not flag:
+                            attacks.add((move[0], move[1]))
+                        check_flag = False
+                        flag = False
+                        break
+                    elif self.board.grid[move[1]][move[0]].__class__.__name__ != "King":
+                        if not flag and not check_flag:
+                            flag = True
+                        else:
+                            flag = False
+                            check_flag = True
+                            break
+                    else:
+                        for k in range(j + 1):
+                            move = (pos[0] + i[0] * k, pos[1] + i[1] * k)
+                            if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
+                                if self.color == 1:
+                                    self.board.white_check_line += [move]
+                                else:
+                                    self.board.black_check_line += [move]
+                        if not flag:
+                            self.board.in_check = -self.color
+                            self.board.move_history[-1] += "+"
+                            if sounds_loaded: check_sound.play()
+                            attacks.add((move[0], move[1]))
+                            check_flag = True
+                            continue
+                        flag = False
+                        break
+                else:
+                    check_flag = False
+                    flag = False
+                    break
+        return attacks
+
 
 class Pawn(Piece):
     def __init__(self, color, board, sprite_dir):
         super().__init__(color, board, sprite_dir)
+        self.when_moved_two_squares = 0
         self.direction = -self.color * self.board.player_one # Направление движения пешки
         self.moves_direction = [(0, self.direction)] # Направление ходов НЕ НА ВСЮ ДОСКУ
 
     def get_valid_moves(self, pos): # Показывает возможные ходы при выделении фигуры
         valid_moves = []
+        if self.board.double_check:
+            return valid_moves
         for i in (-1, 1):
-            if 0 <= pos[0] + i <= 7 and self.board.grid[pos[1] + self.direction][pos[0] + i] is not None and self.board.grid[pos[1] + self.direction][pos[0] + i].color != self.color:
-                if pos[1] + self.direction in (0, 7):
-                    valid_moves += [(pos[0] + i, pos[1] + self.direction, 5)] # 5: ход приводит к взятию + превращению пешки
-                else:
-                    valid_moves += [(pos[0] + i, pos[1] + self.direction, 1)] # 1: ход приводит к взятию
+            move = (pos[0] + i, pos[1] + self.direction)
+            sp = self.board.black_check_line if self.color == 1 else self.board.white_check_line
+            if not sp or (move in sp and pos in sp) or (self.board.in_check == self.color and move in sp) or (not self.board.in_check and pos not in sp):
+                if 0 <= move[0] <= 7 and self.board.grid[move[1]][move[0]] is not None and self.board.grid[move[1]][move[0]].color != self.color:
+                    if pos[1] + self.direction in (0, 7):
+                        valid_moves += [(pos[0] + i, pos[1] + self.direction, 5)] # 5: ход приводит к взятию + превращению пешки
+                    else:
+                        valid_moves += [(pos[0] + i, pos[1] + self.direction, 1)] # 1: ход приводит к взятию
+            if 0 <= move[0] <= 7 and self.board.grid[pos[1]][pos[0] + i].__class__.__name__=="Pawn" and self.board.grid[
+                pos[1]][pos[0] + i].color != self.color:
+                if self.board.grid[pos[1]][pos[0] + i].when_moved_two_squares == self.board.move_number:
+                    valid_moves += [(pos[0] + i, pos[1] + self.direction, 6)]
         for i in range(1, 3 - self.moved):
-            if self.board.grid[pos[1] + self.direction * i][pos[0]] is None:
-                if pos[1] + self.direction in (0, 7):
-                    valid_moves += [(pos[0], pos[1] + self.direction, 4)] # 4: просто превращение пешки
+            move = (pos[0], pos[1] + self.direction * i)
+            sp = self.board.black_check_line if self.color == 1 else self.board.white_check_line
+            if not sp or (move in sp and pos in sp) or (self.board.in_check == self.color and move in sp) or (not self.board.in_check and pos not in sp):
+                if self.board.grid[move[1]][move[0]] is None:
+                    if pos[1] + self.direction in (0, 7):
+                        valid_moves += [(pos[0], pos[1] + self.direction, 4)] # 4: просто превращение пешки
+                    else:
+                        valid_moves += [(pos[0], move[1], 0)] # 0: ход приводит к продвижению пешки
                 else:
-                    valid_moves += [(pos[0], pos[1] + self.direction * i, 0)] # 0: ход приводит к продвижению пешки
-            else:
-                break # Если нельзя походить вперёд на одну клетку, то на две тем более
+                    break # Если нельзя походить вперёд на одну клетку, то на две тем более
         return valid_moves # Координаты клеток, куда в итоге можно вообще пойти
 
     def get_attacks(self, pos, color): # Показывает клетки под боем для вражеского короля
@@ -217,6 +301,14 @@ class Pawn(Piece):
             return attacks
         for i in (-1, 1):
             if 0 <= pos[0] + i <= 7:
+                if self.board.grid[pos[1] + self.direction][pos[0] + i].__class__.__name__ == "King" and self.board.grid[pos[1] + self.direction][pos[0] + i].color != color:
+                    if self.color == 1:
+                        self.board.white_check_line = [(pos[0] + i, pos[1] + self.direction)]
+                    else:
+                        self.board.black_check_line = [(pos[0] + i, pos[1] + self.direction)]
+                    self.board.move_history[-1] += "+"
+                    if sounds_loaded: check_sound.play()
+                    self.board.in_check = -color
                 attacks.add((pos[0] + i, pos[1] + self.direction))
         return attacks # Координаты клеток, куда вражеский король не пойдёт
 
@@ -226,79 +318,11 @@ class Rook(Piece):
         super().__init__(color, board, sprite_dir)
         self.moves_direction = [(0, 1), (1, 0), (0, -1), (-1, 0)] # Направление ходов НА ВСЮ ДОСКУ
 
-    def get_valid_moves(self, pos):
-        valid_moves = []
-        for i in self.moves_direction:
-            for j in range(1, 8):
-                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
-                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                    if self.board.grid[move[1]][move[0]] is None:
-                        valid_moves += [(move[0], move[1], 0)]
-                    elif self.board.grid[move[1]][move[0]].color != self.color:
-                        valid_moves += [(move[0], move[1], 1)]
-                        break
-                    else:
-                        break
-                else:
-                    break
-        return valid_moves
-
-    def get_attacks(self, pos, color):
-        attacks = set()
-        if self.color != color:
-            return attacks
-        for i in self.moves_direction:
-            for j in range(1, 8):
-                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
-                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                    if self.board.grid[move[1]][move[0]] is None:
-                        attacks.add((move[0], move[1]))
-                    elif self.board.grid[move[1]][move[0]].color == self.color:
-                        attacks.add((move[0], move[1]))
-                        break
-                else:
-                    break
-        return attacks
-
 
 class Bishop(Piece):
     def __init__(self, color, board, sprite_dir):
         super().__init__(color, board, sprite_dir)
         self.moves_direction = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
-
-    def get_valid_moves(self, pos):
-        valid_moves = []
-        for i in self.moves_direction:
-            for j in range(1, 8):
-                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
-                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                    if self.board.grid[move[1]][move[0]] is None:
-                        valid_moves += [(move[0], move[1], 0)]
-                    elif self.board.grid[move[1]][move[0]].color != self.color:
-                        valid_moves += [(move[0], move[1], 1)]
-                        break
-                    else:
-                        break
-                else:
-                    break
-        return valid_moves
-
-    def get_attacks(self, pos, color):
-        attacks = set()
-        if self.color != color:
-            return attacks
-        for i in self.moves_direction:
-            for j in range(1, 8):
-                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
-                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                    if self.board.grid[move[1]][move[0]] is None:
-                        attacks.add((move[0], move[1]))
-                    elif self.board.grid[move[1]][move[0]].color == self.color:
-                        attacks.add((move[0], move[1]))
-                        break
-                else:
-                    break
-        return attacks
 
 
 class Queen(Piece):
@@ -306,39 +330,6 @@ class Queen(Piece):
         super().__init__(color, board, sprite_dir)
         self.moves_direction = [(1, 1), (1, -1), (-1, 1), (-1, -1), (0, 1), (1, 0), (0, -1), (-1, 0)]
 
-    def get_valid_moves(self, pos):
-        valid_moves = []
-        for i in self.moves_direction:
-            for j in range(1, 8):
-                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
-                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                    if self.board.grid[move[1]][move[0]] is None:
-                        valid_moves += [(move[0], move[1], 0)]
-                    elif self.board.grid[move[1]][move[0]].color != self.color:
-                        valid_moves += [(move[0], move[1], 1)]
-                        break
-                    else:
-                        break
-                else:
-                    break
-        return valid_moves
-
-    def get_attacks(self, pos, color):
-        attacks = set()
-        if self.color != color:
-            return attacks
-        for i in self.moves_direction:
-            for j in range(1, 8):
-                move = (pos[0] + i[0] * j, pos[1] + i[1] * j)
-                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                    if self.board.grid[move[1]][move[0]] is None:
-                        attacks.add((move[0], move[1]))
-                    elif self.board.grid[move[1]][move[0]].color == self.color:
-                        attacks.add((move[0], move[1]))
-                        break
-                else:
-                    break
-        return attacks
 
 class Knight(Piece):
     def __init__(self, color, board, sprite_dir):
@@ -347,13 +338,17 @@ class Knight(Piece):
 
     def get_valid_moves(self, pos):
         valid_moves = []
+        if self.board.double_check:
+            return valid_moves
         for i in self.moves_direction:
             move = (pos[0] + i[0], pos[1] + i[1])
-            if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
-                if self.board.grid[move[1]][move[0]] is None:
-                    valid_moves += [(move[0], move[1], 0)]
-                elif self.board.grid[move[1]][move[0]].color != self.color:
-                    valid_moves += [(move[0], move[1], 1)]
+            sp = self.board.black_check_line if self.color == 1 else self.board.white_check_line
+            if not sp or (move in sp and pos in sp) or (self.board.in_check == self.color and move in sp) or (not self.board.in_check and pos not in sp):
+                if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
+                    if self.board.grid[move[1]][move[0]] is None:
+                        valid_moves += [(move[0], move[1], 0)]
+                    elif self.board.grid[move[1]][move[0]].color != self.color:
+                        valid_moves += [(move[0], move[1], 1)]
         return valid_moves
 
     def get_attacks(self, pos, color):
@@ -363,6 +358,14 @@ class Knight(Piece):
         for i in self.moves_direction:
             move = (pos[0] + i[0], pos[1] + i[1])
             if 0 <= move[0] <= 7 and 0 <= move[1] <= 7:
+                if self.board.grid[move[1]][move[0]].__class__.__name__ == "King" and self.board.grid[move[1]][move[0]].color != color:
+                    if self.color == 1:
+                        self.board.white_check_line = [move]
+                    else:
+                        self.board.black_check_line = [move]
+                    self.board.move_history[-1] += "+"
+                    if sounds_loaded: check_sound.play()
+                    self.board.in_check = -color
                 attacks.add(move)
         return attacks
 
@@ -381,9 +384,9 @@ class King(Piece):
                     valid_moves += [(move[0], move[1], 0)]
                 elif self.board.grid[move[1]][move[0]].color != self.color:
                     valid_moves += [(move[0], move[1], 1)]
-        if not self.moved and self.board.can_castle_king_side(self.color):
+        if not self.board.in_check and not self.moved and self.board.can_castle_king_side(self.color):
             valid_moves += [(pos[0] + 2 * self.board.player_one, pos[1], 2)]
-        if not self.moved and self.board.can_castle_queen_side(self.color):
+        if not self.board.in_check and not self.moved and self.board.can_castle_queen_side(self.color):
             valid_moves += [(pos[0] - 2 * self.board.player_one, pos[1], 3)]
         return valid_moves
 
@@ -421,6 +424,11 @@ class Board:
         self.attack_grid = set() # Клеточки, куда нельзя походить королю в свой ход
         self.valid_moves = [] # Список возможных ходов фигуры, стоящей на выделенной клеточке
         self.active_cell = None # Выделенная мышкой клеточка
+        self.in_check = 0 # -1 - Шах для чёрных, 0 - Нет шаха, 1 - Шах для белых
+        self.double_check = False # Двойной шах - только двигаем короля
+        self.is_timer_out = False # Таймер кончился: True, не кончился: False
+        self.white_check_line = [] # Линия, по которой белая фигура дала шах / связала фигуру
+        self.black_check_line = []
 
         self.all_sprites = pg.sprite.Group()
 
@@ -430,6 +438,8 @@ class Board:
         self.prom_square = tuple() # Если пусто, то превращения нет, иначе - координаты превращения
 
         self.color_to_move = 1 # Какой цвет сейчас ходит (1 - Белый, -1 - Чёрный)
+        self.game_condition = 0 # 0 - Игра идёт, 0.5 - Ничья, -1 - Победа чёрных, 1 - Победа белых
+        self.draw_rule = 0 # Если подвинута пешка / взята фигура - таймер обновляется. 50 - Ничья.
         self.player_one = first_player # Какими фигурами играет игрок 1 (тот, что снизу)
         self.setup_pieces(first_player)
 
@@ -512,17 +522,6 @@ class Board:
 
         start_col, start_row = start
         end_col, end_row = end
-
-        if isinstance(piece, Pawn):
-            if capture == 1:
-                return f"{col_to_letter(start_col)}x{col_to_letter(end_col)}{row_to_number(end_row)}"
-            elif capture == 4:
-                return "Prom"
-            elif capture == 5:
-                return "Capture"
-            else:
-                return f"{col_to_letter(end_col)}{row_to_number(end_row)}"
-
         piece_letters = {
             Rook: 'R',
             Knight: 'N',
@@ -530,10 +529,28 @@ class Board:
             Queen: 'Q',
             King: 'K'
         }
-        letter = piece_letters.get(type(piece), '')
 
+        if isinstance(piece, Pawn):
+            self.draw_rule = 0
+            if capture == 0:
+                return f"{col_to_letter(end_col)}{row_to_number(end_row)}"
+            elif capture in (1, 6):
+                return f"{col_to_letter(start_col)}x{col_to_letter(end_col)}{row_to_number(end_row)}"
+            else:
+                new_piece = piece_letters[type(self.grid[end[1]][end[0]])]
+                if capture == 4:
+                    return f"{col_to_letter(end_col)}{row_to_number(end_row)}={new_piece}"
+                elif capture == 5:
+                    return f"{col_to_letter(start_col)}x{col_to_letter(end_col)}{row_to_number(end_row)}={new_piece}"
+
+        letter = piece_letters.get(type(piece), '')
         if capture == 1:
+            self.draw_rule = 0
             return f"{letter}x{col_to_letter(end_col)}{row_to_number(end_row)}"
+        elif capture == 2:
+            return "O-O"
+        elif capture == 3:
+            return "O-O-O"
         else:
             return f"{letter}{col_to_letter(end_col)}{row_to_number(end_row)}"
 
@@ -565,6 +582,12 @@ class Board:
                         i + 2) * self.cell_size, self.top + 3 * self.cell_size
 
     def render(self, surf): # Отрисовываем доску каждый кадр
+        if (self.timer.black_time <= 0 or self.timer.white_time <= 0) and not self.is_timer_out:
+            self.is_timer_out = True
+            if self.timer.black_time <= 0:
+                self.game_condition = 1 if self.check_for_enough_material(1) else 0.5
+            elif self.timer.white_time <= 0:
+                self.game_condition = -1 if self.check_for_enough_material(-1) else 0.5
         board_width = 8 * self.cell_size
 
         for i in range(8):
@@ -593,6 +616,23 @@ class Board:
         for i,r in enumerate(r_list):
             t = font.render(r, True, text_color)
             surf.blit(t, (self.left - t.get_width() - 10, self.top + i * self.cell_size + self.cell_size // 2 - t.get_height() // 2))
+
+        if self.game_condition == -1:
+            t = font.render("Black won!", True, self.white_cell_color)
+            size = self.left - t.get_width() - 55 + 12 * self.cell_size
+            surf.blit(t, (size, self.top + 5 * self.cell_size + self.cell_size // 4 - t.get_height() // 2))
+        elif self.game_condition == 1:
+            t = font.render("White won!", True, self.white_cell_color)
+            size = self.left - t.get_width() - 35
+            surf.blit(t, (size, self.top + 5 * self.cell_size + self.cell_size // 4 - t.get_height() // 2))
+        elif self.game_condition == 0.5:
+            t = font.render("Draw!", True, self.white_cell_color)
+            size = self.left - t.get_width() - 55 + 12 * self.cell_size
+            surf.blit(t, (size, self.top + 5 * self.cell_size + self.cell_size // 4 - t.get_height() // 2))
+        elif self.in_check in (1, -1):
+            t = font.render("Check!", True, self.white_cell_color)
+            size = self.left - t.get_width() - 35 + (12 * self.cell_size - 20 if self.in_check == -1 else 0)
+            surf.blit(t, (size, self.top + 5 * self.cell_size + self.cell_size // 4 - t.get_height() // 2))
 
         if self.prom_square:
             if self.color_to_move == 1:
@@ -804,10 +844,6 @@ class Board:
             move_text = self.move_font.render(move, True, pg.Color(200, 200, 200))
             surf.blit(move_text, (history_x + 10, history_y + 40 + i * 25))
 
-    def update(self):
-        # Обновление материального баланса
-        self.calculate_material()
-
     def update_sprites(self): # Обновляем спрайты
         for i in range(8):
             for j in range(8):
@@ -819,13 +855,20 @@ class Board:
         pass
 
     def get_click(self, mouse_pos): # Разбираемся: выделяем ли клетку, отменяем ли выделение или ходим
+        if self.game_condition:
+            return
         clicked_cell = ((mouse_pos[0] - self.left) // self.cell_size, (mouse_pos[1] - self.top) // self.cell_size)
         if self.prom_square:
             d = {2: Rook, 3: Knight, 4: Bishop, 5: Queen}
             if clicked_cell[0] in d and clicked_cell[1] == 3:
                 piece = self.grid[self.prom_square[3]][self.prom_square[2]]
-                move_notation = self.get_move_notation(piece, (self.prom_square[2], self.prom_square[3]), (self.prom_square[0], self.prom_square[1]),  self.prom_square[4])
                 if self.prom_square[4] == 5:
+                    if sounds_loaded: capture_sound.play()
+                    captured_piece = self.grid[self.prom_square[1]][self.prom_square[0]].__class__.__name__
+                    if self.color_to_move == 1:
+                        self.captured_by_white += [captured_piece]
+                    else:
+                        self.captured_by_black += [captured_piece]
                     self.grid[self.prom_square[1]][self.prom_square[0]].sprite.kill()
                     print(f"{self.grid[self.prom_square[1]][self.prom_square[0]].__class__.__name__} was captured!")
                 self.grid[self.prom_square[1]][self.prom_square[0]] = d[clicked_cell[0]](self.color_to_move, self, True)
@@ -836,6 +879,8 @@ class Board:
                 self.grid[self.prom_square[3]][self.prom_square[2]].sprite.kill()
                 self.grid[self.prom_square[3]][self.prom_square[2]] = None
 
+                move_notation = self.get_move_notation(piece, (self.prom_square[2], self.prom_square[3]),
+                                                       (self.prom_square[0], self.prom_square[1]), self.prom_square[4])
                 if self.color_to_move == 1:  # Белые
                     self.move_history.append(f"{self.move_number}. {move_notation}")
                 else:  # Черные
@@ -847,13 +892,17 @@ class Board:
                         self.move_number += 1
 
                 self.check_attacks()
+                self.game_condition = self.check_game_condition()
                 self.color_to_move = -self.color_to_move
                 self.timer.switch_turn()
+                self.calculate_material()
             self.prom_square = tuple()
             return
         if self.active_cell is not None:
-            for i in (0, 1, 2, 3, 4, 5):
+            for i in (0, 1, 2, 3, 6):
                 if (clicked_cell[0], clicked_cell[1], i) in self.valid_moves:
+                    if self.color_to_move == -1:
+                        self.draw_rule += 1
                     piece = self.grid[self.active_cell[1]][self.active_cell[0]]
                     move_notation = self.get_move_notation(piece, self.active_cell, clicked_cell, i)
 
@@ -869,8 +918,8 @@ class Board:
                             self.move_number += 1
 
                     # Запоминаем съеденную фигуру
-                    if i == 1:  # Взятие фигуры
-                        captured_piece = self.grid[clicked_cell[1]][clicked_cell[0]]
+                    if i in (1, 6):  # Взятие фигуры
+                        captured_piece = self.grid[clicked_cell[1] - (clicked_cell[1] - self.active_cell[1] if i == 6 else 0)][clicked_cell[0]]
                         piece_type = captured_piece.__class__.__name__
                         if self.color_to_move == 1:  # Белые съели фигуру
                             self.captured_by_white.append(piece_type)
@@ -885,6 +934,12 @@ class Board:
                     self.active_cell = None
                     self.valid_moves = []
                     return
+            for i in (4, 5):
+                if (clicked_cell[0], clicked_cell[1], i) in self.valid_moves:
+                    self.move_piece(self.active_cell, clicked_cell, i)
+                    self.active_cell = None
+                    self.valid_moves = []
+                    return
         if (not (0 <= clicked_cell[0] <= 7) or not (0 <= clicked_cell[1] <= 7) or
                 self.grid[clicked_cell[1]][clicked_cell[0]] is None or
                 self.grid[clicked_cell[1]][clicked_cell[0]].color != self.color_to_move): # Отменяем выделение
@@ -894,20 +949,47 @@ class Board:
         self.active_cell = clicked_cell # Записываем выделенную клетку и получаем координаты возможных ходов
         self.valid_moves = self.grid[self.active_cell[1]][self.active_cell[0]].get_valid_moves(self.active_cell)
 
-    def get_cell(self, mouse_pos):
-        pass
+    def check_game_condition(self):
+        if self.color_to_move == -1 and self.move_number > 4:
+            move = ' '.join(self.move_history[-1].split()[1:3])
+            flag = 0
+            for i in self.move_history[-5:-1]:
+                if move in i:
+                    flag += 1
+            if flag >= 2:
+                print("Draw by repetition")
+                self.move_history += ["0.5 - 0.5"]
+                return 0.5
+        if self.draw_rule == 50:
+            print("Draw by 50-move rule")
+            self.move_history += ["0.5 - 0.5"]
+            return 0.5
 
-    def on_board(self, pos):
-        pass
+        if self.move_number > 20:
+            if not self.check_for_enough_material(1) and not self.check_for_enough_material(-1):
+                print("Draw by insufficient material")
+                self.move_history += ["0.5 - 0.5"]
+                return 0.5
 
-    def is_empty(self, pos):
-        pass
-
-    def is_enemy(self, pos, color):
-        pass
-
-    def is_friendly(self, pos, color):
-        pass
+        for i in range(8):
+            for j in range(8):
+                if self.grid[i][j] is not None and self.grid[i][j].color != self.color_to_move and self.grid[i][j].get_valid_moves((j, i)):
+                    return 0
+        self.quit()
+        if self.in_check == -1:
+            self.move_history[-1] = self.move_history[-1][:-1] + "#"
+            self.move_history += ["1 - 0"]
+            print("White wins")
+            return 1
+        elif self.in_check == 1:
+            self.move_history[-1] = self.move_history[-1][:-1] + "#"
+            self.move_history += ["0 - 1"]
+            print("Black wins")
+            return -1
+        else:
+            print("Draw by stalemate")
+            self.move_history += ["0.5 - 0.5"]
+            return 0.5
 
     def check_attacks(self):
         self.attack_grid = set()
@@ -916,10 +998,20 @@ class Board:
                 if self.grid[i][j] is not None:
                     self.attack_grid.update(self.grid[i][j].get_attacks((j, i), self.color_to_move))
 
+    def check_for_enough_material(self, color_to_check):
+        sp = [type(j) for i in self.grid for j in i if j is not None and j.color == color_to_check]
+        if Pawn not in sp and Rook not in sp and Queen not in sp:
+            if (sp.count(Bishop), sp.count(Knight)) in [(1, 0), (0, 1), (0, 0)]:
+                return False
+        return True
+
+
     def move_piece(self, start, end, action):
-        if action == 1: # Поимка фигуры (возможно и с превращением пешки)
-            self.grid[end[1]][end[0]].sprite.kill()
-            print(f"{self.grid[end[1]][end[0]].__class__.__name__} was captured!")
+        if action in (1, 6): # Поимка фигуры (возможно, взятие на проходе)
+            self.grid[end[1] - (end[1] - start[1] if action == 6 else 0)][end[0]].sprite.kill()
+            print(f"{self.grid[end[1] - (end[1] - start[1] if action == 6 else 0)][end[0]].__class__.__name__} was captured!")
+            if action == 6:
+                self.grid[end[1] - (end[1] - start[1])][end[0]] = None
         elif action == 2: # Двигаем ладью при королевской рокировке
             self.grid[end[1]][end[0] + self.player_one], self.grid[end[1]][end[0] - self.player_one] = None, self.grid[
                 end[1]][end[0] + self.player_one]
@@ -930,8 +1022,21 @@ class Board:
             self.prom_square = (end[0], end[1], start[0], start[1], action)
             return
         self.grid[start[1]][start[0]].moved = True
+        if self.grid[start[1]][start[0]].__class__.__name__ == "Pawn" and abs(start[1] - end[1]) == 2:
+            self.grid[start[1]][start[0]].when_moved_two_squares = self.move_number
         self.grid[start[1]][start[0]], self.grid[end[1]][end[0]] = None, self.grid[start[1]][start[0]] # Двигаем фигуру
+        if self.in_check:
+            self.in_check = 0
+        self.white_check_line = []
+        self.black_check_line = []
         self.check_attacks()
+        self.game_condition = self.check_game_condition()
+        if self.in_check == 1 and len(set(self.black_check_line)) != len(self.black_check_line):
+            self.double_check = True
+        elif self.in_check == -1 and len(set(self.white_check_line)) != len(self.white_check_line):
+            self.double_check = True
+        else:
+            self.double_check = False
         self.color_to_move = -self.color_to_move # Объявляем ход следующего игрока
         self.timer.switch_turn()
         self.update_sprites() # Отрисовываем спрайты после хода
