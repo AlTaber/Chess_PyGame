@@ -1,10 +1,8 @@
-import datetime
-import json
-import pygame as pg
 from UI_Engine import *
 from Game import Board
-from random import random
 from functools import partial
+
+from fontTools.merge import timer
 
 
 class Game:
@@ -55,10 +53,12 @@ class Game:
         def main_menu():
             self.current_widget = "main"
 
-        def set_time_limit(time):
+        def set_time_limit(time, timer_text):
+            timer_text.text = "Minutes: " + str(time // 60)
             self.current_options["timer"] = time
 
-        def set_player_one(color):
+        def set_player_one(color, color_text):
+            color_text.text = {1: "White", -1: "Black"}[color]
             self.current_options["player_one"] = color
 
         def resign():
@@ -80,28 +80,32 @@ class Game:
                 self.board.game_condition = 0.5
                 print("Draw by agreement")
 
+        timer_text = Text((50, 250), text="Minutes: 5", font_size=40)
+        color_text = Text((50, 400), text="White", font_size=40)
         self.OptionsMenu = Widget(self, [], [
             Text((570, 30), "Options", None, 48),
         ])
         self.OptionsMenu.add_button(
             Button(self.OptionsMenu, (490, 100), size=(300, 50), text="Back to Main Menu", action=main_menu))
-        self.OptionsMenu.add_text(Text((50, 200), text="Time limit:", font_size=40))
-        self.OptionsMenu.add_text(Text((50, 350), text="Player one color:", font_size=40))
-        self.OptionsMenu.add_text(Text((50, 500), text="To (un)mute music, press Spacebar!", font_size=40))
+        self.OptionsMenu.add_text(Text((50, 200), text="Time limit", font_size=40))
+        self.OptionsMenu.add_text(Text((50, 350), text="Player one color", font_size=40))
+        self.OptionsMenu.add_text(Text((50, 600), text="To (un)mute music, press Spacebar!", font_size=40))
+        self.OptionsMenu.add_text(timer_text)
+        self.OptionsMenu.add_text(color_text)
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (300, 190), size=(100, 50), text="1:00", action=partial(set_time_limit, 60)))
+            self.OptionsMenu, (300, 190), size=(100, 50), text="1:00", action=partial(set_time_limit, 60, timer_text)))
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (500, 190), size=(100, 50), text="3:00", action=partial(set_time_limit, 180)))
+            self.OptionsMenu, (500, 190), size=(100, 50), text="3:00", action=partial(set_time_limit, 180, timer_text)))
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (700, 190), size=(100, 50), text="5:00", action=partial(set_time_limit, 300)))
+            self.OptionsMenu, (700, 190), size=(100, 50), text="5:00", action=partial(set_time_limit, 300, timer_text)))
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (900, 190), size=(100, 50), text="10:00", action=partial(set_time_limit, 600)))
+            self.OptionsMenu, (900, 190), size=(100, 50), text="10:00", action=partial(set_time_limit, 600, timer_text)))
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (1100, 190), size=(100, 50), text="30:00", action=partial(set_time_limit, 1800)))
+            self.OptionsMenu, (1100, 190), size=(100, 50), text="30:00", action=partial(set_time_limit, 1800, timer_text)))
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (350, 340), size=(100, 50), text="White", action=partial(set_player_one, 1)))
+            self.OptionsMenu, (350, 340), size=(100, 50), text="White", action=partial(set_player_one, 1, color_text)))
         self.OptionsMenu.add_button(Button(
-            self.OptionsMenu, (550, 340), size=(100, 50), text="Black", action=partial(set_player_one, -1)))
+            self.OptionsMenu, (550, 340), size=(100, 50), text="Black", action=partial(set_player_one, -1, color_text)))
 
         self.GameMenu = Widget(self, [], [])
         self.GameMenu.add_button(Button(self.GameMenu, (20, 20), size=(100, 40), text="Leave", action=leave_game))

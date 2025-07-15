@@ -1,9 +1,6 @@
-from UI_Engine import load_image
 import pygame as pg
 import time
-import sys
 import threading
-import os
 
 pg.mixer.init()
 
