@@ -156,6 +156,8 @@ class Game:
                         if self.current_widget == "game" and self.board:
                             self.board.get_click(event.pos)
                         current_widget.get_click(event.pos)
+                    if event.type == pg.MOUSEMOTION:
+                        current_widget.get_motion(event.pos)
                     if event.type == pg.KEYDOWN:
                         if event.key == pg.K_SPACE and music_loaded:
                             if pg.mixer.music.get_busy():
