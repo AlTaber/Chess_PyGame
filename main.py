@@ -2,8 +2,6 @@ from UI_Engine import *
 from Game import Board
 from functools import partial
 
-from fontTools.merge import timer
-
 
 class Game:
     def __init__(self):
